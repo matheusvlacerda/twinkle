@@ -1,0 +1,331 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]
+}
+
+generator typegraphql {
+  provider = "typegraphql-prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Rarity: defines the rarity of a card. chance is a float between 0 and 1, where 0 is impossible and 1 is guaranteed
+model Rarity {
+  id     Int    @id @default(autoincrement())
+  name   String
+  chance Float
+  cards  Card[]
+}
+
+// Category: defines a category of cards. it has a name and a set of tags
+model Category {
+  id            Int           @id @default(autoincrement())
+  name          String        @unique
+  emoji         String        @default("🃏")
+  image         String?
+  subcategories Subcategory[]
+  cards         Card[]
+  ShopItem      ShopItem[]
+  hidden        Boolean       @default(false)
+}
+
+// Subcategory: defines a subcategory of cards. it has a name and a set of tags
+model Subcategory {
+  id             Int      @id @default(autoincrement())
+  name           String
+  category       Category @relation(fields: [categoryId], references: [id])
+  categoryId     Int
+  image          String?
+  isSecondary    Boolean  @default(false)
+  aliases        String[] @default([])
+  cards          Card[]
+  secondaryCards Card[]   @relation("SecondarySubcategory")
+  rarityModifier Float    @default(0)
+  createdAt      DateTime @default(now())
+}
+
+// Card: defines a collectible card. it has a name, a description, a rarity, a set of tags, an image, and a rarity modifier
+model Card {
+  id                     Int                   @id @default(autoincrement())
+  name                   String
+  rarity                 Rarity                @relation(fields: [rarityId], references: [id])
+  rarityId               Int
+  tags                   String[]
+  image                  String                @default("https://placehold.co/400x624.png?text=Use+/setimage+id+para+trocar%20esta%20imagem.")
+  rarityModifier         Float
+  category               Category              @relation(fields: [categoryId], references: [id])
+  categoryId             Int
+  secondarySubcategories Subcategory[]         @relation("SecondarySubcategory")
+  subcategory            Subcategory?          @relation(fields: [subcategoryId], references: [id])
+  subcategoryId          Int?
+  usersWithCard          UserCard[]
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @default(now()) @updatedAt
+  UserCardPreferences    UserCardPreferences[]
+
+  @@index([name], name: "card_name_index")
+}
+
+// User: defines a user. it has a telegram id, a set of cards
+model User {
+  id                  Int                   @id @default(autoincrement())
+  tgId                BigInt                @unique
+  isAdmin             Boolean               @default(false)
+  isPremium           Boolean               @default(true)
+  isBanned            Boolean               @default(false)
+  banMessage          String?
+  cards               UserCard[]
+  maximumDraws        Int                   @default(24)
+  usedDraws           Int                   @default(0)
+  luckModifier        Float                 @default(0)
+  coins               Int                   @default(0)
+  profile             UserProfile?
+  isMarried           Boolean               @default(false)
+  hasGivenRep         Boolean               @default(false)
+  hasGottenDaily      Boolean               @default(false)
+  dailyStreak         Int                   @default(0)
+  lastDaily           DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @default(now()) @updatedAt
+  UserCardPreferences UserCardPreferences[]
+  UserAchievement     UserAchievement[]
+  Donator             Donator[]
+  StripeCustomer      StripeCustomer[]
+  ProposedAction      ProposedAction[]
+}
+
+model UserCard {
+  id          Int           @id @default(autoincrement())
+  userId      Int
+  cardId      Int
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card        Card          @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  count       Int           @default(1)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+  userProfile UserProfile[]
+
+  @@index([userId, cardId], name: "user_card_index")
+  @@index([userId], name: "user_card_user_index")
+  @@index([cardId], name: "user_card_card_index")
+}
+
+model ProfileBackground {
+  id        Int           @id @default(autoincrement())
+  name      String        @unique
+  image     String
+  users     UserProfile[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @default(now()) @updatedAt
+}
+
+model ProfileSticker {
+  id        Int           @id @default(autoincrement())
+  name      String        @unique
+  image     String
+  users     UserProfile[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @default(now()) @updatedAt
+}
+
+// model to store the user's custom profile data (so, favorite color, favorite card, reputation, background, badge, stickers, background, etc)
+model UserProfile {
+  id                Int                @id @default(autoincrement())
+  userId            Int                @unique
+  favoriteColor     String             @default("#01A9DB")
+  favoriteCardId    Int?
+  biography         String             @default("Eu ainda não mudei isso com /bio!")
+  reputation        Int                @default(0)
+  backgroundId      Int                @default(1)
+  stickers          ProfileSticker?    @relation(fields: [stickerId], references: [id])
+  stickerId         Int?
+  favoriteCardColor String?
+  hideProfileEmojis Boolean            @default(false)
+  hideCardEmojis    Boolean            @default(false)
+  lastFmUsername    String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  favoriteCard      UserCard?          @relation(fields: [favoriteCardId], references: [id])
+  background        ProfileBackground? @relation(fields: [backgroundId], references: [id])
+  badgeEmojis       String[]           @default([])
+}
+
+// defines a purchasable item: the marriage ring. can be used to marry two users
+model MarriageRing {
+  id        Int        @id @default(autoincrement())
+  image     String
+  name      String
+  marriages Marriage[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
+}
+
+// defines the user's marriage status
+model Marriage {
+  id        Int          @id @default(autoincrement())
+  user1Id   Int
+  user2Id   Int
+  ringId    Int
+  ring      MarriageRing @relation(fields: [ringId], references: [id])
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @default(now()) @updatedAt
+}
+
+// defines the user inventory - that is, their backgrounds, stickers, and badges
+model UserInventory {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique
+  backgroundIDs Int[]    @default([])
+  stickerIDs    Int[]    @default([])
+  ringIDs       Int[]    @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+}
+
+// model with an enum to represent items that can be bought with coins
+model ShopItem {
+  id          Int      @id @default(autoincrement())
+  type        ItemType
+  price       Int
+  itemId      Int
+  image       String
+  name        String
+  description String
+  categoryId  Int      @default(0)
+  category    Category @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+enum ItemType {
+  BACKGROUND
+  STICKER
+  MARRIAGE_RING
+  DRAWS
+}
+
+model ConsumedTrade {
+  id         Int      @id @default(autoincrement())
+  user1Id    Int
+  user2Id    Int
+  cardsUser1 Int[]
+  cardsUser2 Int[]
+  createdAt  DateTime @default(now())
+}
+
+model GroupDrawLock {
+  id                Int      @id @default(autoincrement())
+  groupId           BigInt   @unique
+  allowedCategories Int[]    @default([])
+  createdAt         DateTime @default(now())
+}
+
+model UserCardPreferences {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId      Int
+  card        Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  customImage String?
+  customEmoji String?
+  tradeable   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model Achievement {
+  id              Int               @id @default(autoincrement())
+  name            String
+  description     String
+  image           String
+  condition       String
+  rewardCode      String
+  hook            String
+  message         String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
+  UserAchievement UserAchievement[]
+}
+
+model UserAchievement {
+  id            Int         @id @default(autoincrement())
+  userId        Int
+  achievementId Int
+  messageData   String?
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @default(now()) @updatedAt
+}
+
+model GroupConfig {
+  id               Int      @id @default(autoincrement())
+  groupId          BigInt   @unique
+  isBanned         Boolean  @default(false)
+  banReason        String?
+  allowSimpleTrade Boolean  @default(false)
+  disabledCommands String[] @default([])
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+}
+
+model DonationPlan {
+  id                   Int       @id @default(autoincrement())
+  name                 String
+  stripeProductID      String
+  stripeTestProductID  String
+  price                Int
+  maximumCardDonations Int
+  userLuckIncrease     Float
+  maximumDraws         Int
+  changeInDrawCount    Int
+  storeDiscount        Float
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @default(now()) @updatedAt
+  Donator              Donator[]
+}
+
+model Donator {
+  id        Int          @id @default(autoincrement())
+  userId    Int
+  planId    Int
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan      DonationPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @default(now()) @updatedAt
+  expiresAt DateTime
+  cancelled Boolean      @default(false)
+
+  @@index([userId], name: "donator_user_index")
+}
+
+model StripeCustomer {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  stripeId  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  beta      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+enum ProposedActionType {
+  CATIVEIRO_CUSTOM_PHOTO
+}
+
+model ProposedAction {
+  id        Int                @id @default(autoincrement())
+  userId    Int
+  type      ProposedActionType
+  data      String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @default(now()) @updatedAt
+}
