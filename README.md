@@ -1,4 +1,4 @@
-# 🃏 openGIRAÊ
+# 🃏 twinkleBOT
 
 Uma bot de cartas para o Telegram.
 
