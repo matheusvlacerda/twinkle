@@ -19,8 +19,8 @@ import Brooklyn from './Brooklyn.js'
 process.env.BOT_NAME = process.env.BOT_NAME || 'Giraê'
 if (process.env.RUN_BETA) {
   info('giraê', 'running in beta mode')
-  process.env.OG_TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN
-  process.env.TELEGRAM_TOKEN = process.env.BETA_TELEGRAM_TOKEN
+  process.env.7412518558:AAFwsC78gg4lzxg-Cg69iLgrwl61RWO-Q0M = process.env.7412518558:AAFwsC78gg4lzxg-Cg69iLgrwl61RWO-Q0M
+  process.env.7412518558:AAFwsC78gg4lzxg-Cg69iLgrwl61RWO-Q0M = process.env.7412518558:AAFwsC78gg4lzxg-Cg69iLgrwl61RWO-Q0M
   process.env.LAUNCH_POLLING = 'true'
 }
 
